@@ -1,7 +1,8 @@
 flask
 flask-cors
+dlib-bin
 face_recognition
-opencv-python
+opencv-python-headless
 numpy
 cryptography
 Pillow
