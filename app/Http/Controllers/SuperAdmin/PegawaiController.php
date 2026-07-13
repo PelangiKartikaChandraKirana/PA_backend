@@ -395,27 +395,30 @@ class PegawaiController extends Controller
 
         // Handing Face Image
         $nipFallback = $validated['nip'] ?? $user->id;
+
         if ($request->filled('face_image')) {
+
             try {
                 $base64Image = $request->face_image;
-                if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
-                    $base64Image = substr($base64Image, strpos($base64Image, ',') + 1);
-                    $type = strtolower($type[1]); // jpg, png, etc
 
-                    if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
-                        throw new \Exception('Invalid image type');
-                    }
+                if (!preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+                    throw new \Exception('face_image format harus data:image/<type>;base64,...');
+                }
 
-                    $imageData = base64_decode($base64Image);
-                    if ($imageData === false) {
-                        throw new \Exception('base64_decode failed');
-                    }
-                } else {
-                    throw new \Exception('did not match data URI with image data');
+                $type = strtolower($type[1]);
+                if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
+                    throw new \Exception('Invalid image type: ' . $type);
+                }
+
+                $base64Payload = substr($base64Image, strpos($base64Image, ',') + 1);
+                $imageData = base64_decode($base64Payload);
+                if ($imageData === false) {
+                    throw new \Exception('base64_decode failed');
                 }
 
                 $fileName = 'faces/' . $nipFallback . '_' . time() . '.' . $type;
                 Storage::disk('public')->put($fileName, $imageData);
+
 
                 // Find or create Employee
                 $employee = Employee::firstOrCreate(
