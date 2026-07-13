@@ -101,7 +101,7 @@
                                         -
                                 @endswitch
                             </td>
-                            <td class="px-4 py-3 text-sm text-slate-600">{{ $row->keterlambatan }} menit</td>
+                            <td class="px-4 py-3 text-sm text-slate-600">{{ $row->keterlambatan }}</td>
                             <td class="px-4 py-3 text-sm text-slate-600">{{ $row->lokasi_mesin }}</td>
                             <td class="px-4 py-3 text-sm text-slate-600">{{ $row->ip_address }}</td>
                             <td class="px-4 py-3 text-sm text-slate-600">

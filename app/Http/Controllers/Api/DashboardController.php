@@ -12,13 +12,70 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+
     public function index(Request $request)
     {
+        $user = $request->user();
+        $employee = $user->employee ?? null;
+
+        $hariKerja = 0;
+        $hadir = 0;
+        $izinAlpha = 0;
+
+        if ($employee) {
+            $now = Carbon::now();
+            $month = $now->month;
+            $year = $now->year;
+            $today = $now->copy()->endOfDay();
+
+            for ($d = 1; $d <= $now->daysInMonth; $d++) {
+                $date = Carbon::create($year, $month, $d);
+
+                if ($date->isWeekend()) {
+                    continue;
+                }
+
+                if ($date->greaterThan($today)) {
+                    continue; // hari yang belum lewat, jangan dihitung
+                }
+
+                $hariKerja++;
+
+                // Cek dokumen izin/cuti yang sudah disetujui
+                $hasApprovedDoc = AbsenceDocument::where('employee_id', $employee->id)
+                    ->where('status', 'approved')
+                    ->whereDate('start_date', '<=', $date->format('Y-m-d'))
+                    ->whereDate('end_date', '>=', $date->format('Y-m-d'))
+                    ->exists();
+
+                if ($hasApprovedDoc) {
+                    $izinAlpha++;
+                    continue;
+                }
+
+                // Cek log presensi hari itu
+                $log = AttendanceLog::where('employee_id', $employee->id)
+                    ->whereDate('attendance_date', $date->format('Y-m-d'))
+                    ->first();
+
+                if ($log && $log->check_in_at) {
+                    $hadir++;
+                } else {
+                    $izinAlpha++; // tidak absen & tidak ada izin approved = alpha
+                }
+            }
+        }
+
         return response()->json([
             'message' => 'Dashboard berhasil diambil',
             'user' => $request->user(),
             'total_pegawai' => Employee::count(),
             'total_user' => User::count(),
+            'data' => [
+                'hari_kerja' => $hariKerja,
+                'hadir' => $hadir,
+                'izin_alpha' => $izinAlpha,
+            ],
         ]);
     }
 

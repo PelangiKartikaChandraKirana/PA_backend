@@ -285,6 +285,7 @@ class FaceAttendanceController extends Controller
             }
 
             // --- Lokasi Geolocation Check ---
+	    $minDistance = null;
             $assignedLocations = $employee->locations;
             if ($assignedLocations->isNotEmpty()) {
                 $isWithinRadius = false;
@@ -443,7 +444,7 @@ class FaceAttendanceController extends Controller
 
                     'latitude' => $request->latitude,
                     'longitude' => $request->longitude,
-                    'distance_meter' => round($minDistance),
+                    'distance_meter' => $minDistance !== null ? round($minDistance) : null,
                 ]
             );
 

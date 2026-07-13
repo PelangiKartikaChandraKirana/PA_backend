@@ -41,7 +41,11 @@ class LaporanController extends Controller
             ->keyBy('employee_id');
 
         $data = $rows->map(function ($row) use ($tanggal, $tanggalObj, $absenceDocs) {
-            $scanQuery = DB::table('attendance_scan_logs')
+            $attendanceLog = DB::table('attendance_logs')
+    ->where('employee_id', $row->id)
+    ->whereDate('attendance_date', $tanggal)
+    ->first();
+                $scanQuery = DB::table('attendance_scan_logs')
                 ->join('attendance_logs', 'attendance_scan_logs.attendance_log_id', '=', 'attendance_logs.id')
                 ->where('attendance_logs.employee_id', $row->id)
                 ->whereDate('attendance_scan_logs.attendance_time', $tanggal)
@@ -77,40 +81,32 @@ class LaporanController extends Controller
             $firstLog = $logs->first();
             $lastLog = $logs->last();
 
-            $jamMasuk = '-';
-            $jamKeluar = '-';
+	    $rejectedLog = null;
+	    if (!$firstLog) {
+            $rejectedLog = DB::table('attendance_logs')
+        ->where('employee_id', $row->id)
+        ->whereDate('attendance_date', $tanggal)
+        ->where('validation_status', 'REJECTED')
+        ->orderByDesc('created_at')
+        ->first();
+        }
 
-            if ($firstLog) {
-                $firstTime = $firstLog->attendance_time ?? null;
-                if ($firstTime) {
-                    $jamMasuk = Carbon::parse($firstTime)->format('H:i:s');
-                }
-            }
+            $jamMasuk = $attendanceLog->check_in_at ?? '-';
+$jamKeluar = $attendanceLog->check_out_at ?? '-';
 
-            if ($lastLog) {
-                $lastTime = $lastLog->attendance_time ?? null;
-                if ($lastTime) {
-                    $jamKeluar = Carbon::parse($lastTime)->format('H:i:s');
-                }
-            }
+$durasiKerja = '-';
+if ($attendanceLog && $attendanceLog->check_in_at && $attendanceLog->check_out_at) {
+    $start = Carbon::parse($tanggal . ' ' . $attendanceLog->check_in_at);
+    $end = Carbon::parse($tanggal . ' ' . $attendanceLog->check_out_at);
 
-            $durasiKerja = '-';
-            if ($firstLog && $lastLog) {
-                $start = $firstLog->attendance_time ?? null;
-                $end = $lastLog->attendance_time ?? null;
-
-                if ($start && $end) {
-                    $startTime = Carbon::parse($start);
-                    $endTime = Carbon::parse($end);
-
-                    if ($endTime->greaterThan($startTime)) {
-                        $minutes = $startTime->diffInMinutes($endTime);
-                        $hours = floor($minutes / 60);
-                        $mins = $minutes % 60;
-                        $durasiKerja = sprintf('%02d:%02d', $hours, $mins);
-                    }
-                }
-            }
+    if ($end->greaterThan($start)) {
+        $minutes = $start->diffInMinutes($end);
+        $hours = floor($minutes / 60);
+        $mins = $minutes % 60;
+        $durasiKerja = sprintf('%02d:%02d', $hours, $mins);
+    }
+}
+              
             
             $absence = $absenceDocs->get($row->id);
             $status = 'Belum Ada Log';
@@ -128,6 +124,14 @@ class LaporanController extends Controller
                         }
                     }
                 }
+	    } elseif ($rejectedLog) {
+    $reasonLabels = [
+        'OUTSIDE_GEOFENCE' => 'Ditolak (Di Luar Radius)',
+        'TIME_NOT_SYNC' => 'Ditolak (Waktu Tidak Sinkron)',
+    ];
+    $status = $reasonLabels[$rejectedLog->validation_reason] ?? 'Ditolak';
+    $keterlambatan = '-';
+
             } elseif ($absence) {
                 $status = strtoupper($absence->document_type ?? 'Cuti/Izin');
             } else {
@@ -151,9 +155,13 @@ class LaporanController extends Controller
                 'jam_keluar' => $jamKeluar,
                 'durasi_kerja' => $durasiKerja,
                 'status' => $status,
+                'validation_status' => $rejectedLog->validation_status ?? 'VALID',
+    'validation_reason' => $rejectedLog->validation_reason ?? null,
                 'keterlambatan' => $keterlambatan,
-                'lokasi_mesin' => '-',
-                'ip_address' => '-',
+                'lokasi_mesin' => ($firstLog && $firstLog->latitude && $firstLog->longitude)
+    ? $firstLog->latitude . ', ' . $firstLog->longitude
+    : '-',
+'ip_address' => $firstLog->request_ip ?? '-',
                 'foto_capture' => $this->resolvePhotoUrl($firstLog->face_image_path ?? $firstLog->check_in_photo_path ?? null),
             ];
         });
